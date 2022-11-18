@@ -1,32 +1,12 @@
 ---
-include:
-    - project: 'tools/continuous-integration/docker/docker-pure-trunk-combined'
-      file: 'gitlab-ci.yml'
-      ref: master
-
-##########################################################################################################
-
-variables:
-    TRUNK_TAG: 'latest'
-    TRUNK_REF: 'develop'
-    #  CUSTOM_BUILDPATH: '.'
-    #  CUSTOM_DOCKERFILE: '/Dockerfile'
-    GIT_DEPTH: 1
-    KUBECONFIG: '/tmp/kubeconfig'
 
 ##########################################################################################################
 
 ## PIPELINE DEFINITION
 stages:
-    - hadolint
-    - lint
     - codeStyleCheck
     - test
     - build
-    - pack
-    - scan
-    - release
-    - deploy
 
 #########################################################################################################
 
@@ -75,37 +55,3 @@ build:
             - build
             - node_modules/
 
-### DEPLOY SECTION
-.helm:
-    extends: .common_docker
-    stage: deploy
-    image: $HELM_IMAGE
-    before_script:
-        - echo "${KUBE_CONFIG}" > "${KUBECONFIG}"
-        - chmod 0600 "${KUBECONFIG}"
-    script:
-        - export HELM_APPVERSION="temp-${CI_COMMIT_SHORT_SHA}"
-        - export HELM_VERSION="$(busybox date -u -D %Y-%m-%dT%H:%M:%S +%Y%m.%d%H.%M%S -d $CI_COMMIT_TIMESTAMP)"
-        - cd .chart && sh setup.sh && helm dependency update && helm lint -n default --with-subcharts . && helm upgrade --atomic --install --create-namespace --namespace ${HELM_NAMESPACE} ${HELM_RELEASE} ${HELM_PARAMETERS} .
-
-# Deploy task on branch "develop".
-deploy-develop:
-    extends: .helm
-    rules:
-        - if: $CI_COMMIT_BRANCH == 'develop' && $CI_PIPELINE_SOURCE != "merge_request_event" && $KUBE_CONFIG
-        - when: never
-    variables:
-        HELM_NAMESPACE: $HELM_NAMESPACE_DEV
-        HELM_INGRESS_HOST: $HELM_INGRESS_HOST_DEV
-        KUBE_CONFIG: $KUBE_CONFIG
-
-# Deploy task on branch "main".
-deploy-staging:
-    extends: .helm
-    rules:
-        - if: $CI_COMMIT_BRANCH == 'main' && $CI_PIPELINE_SOURCE != "merge_request_event" && $KUBE_CONFIG
-        - when: never
-    variables:
-        HELM_NAMESPACE: $HELM_NAMESPACE_STG
-        HELM_INGRESS_HOST: $HELM_INGRESS_HOST_STG
-        KUBE_CONFIG: $KUBE_CONFIG
